@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../services/database');
+const DB = require('../services/database');
 const waManager = require('../services/whatsapp');
 const logger = require('../utils/logger');
 
@@ -11,14 +11,19 @@ const validateApiKey = async (req, res, next) => {
     return res.status(401).json({ success: false, error: 'API Key required' });
   }
 
-  const apiKeyRecord = await db.getApiKeyByKey(apiKey);
-  if (!apiKeyRecord) {
-    return res.status(403).json({ success: false, error: 'Invalid API Key' });
-  }
+  try {
+    const apiKeyRecord = await DB.verifyApiKey(apiKey);
+    if (!apiKeyRecord) {
+      return res.status(403).json({ success: false, error: 'Invalid API Key' });
+    }
 
-  req.user = { id: apiKeyRecord.user_id };
-  req.apiKey = apiKeyRecord;
-  next();
+    req.user = { id: apiKeyRecord.user_id };
+    req.apiKey = apiKeyRecord;
+    next();
+  } catch (error) {
+    logger.error('API Key validation error', error);
+    res.status(500).json({ success: false, error: 'Validation error' });
+  }
 };
 
 // POST /api/messages/send - Enviar mensaje por WhatsApp
@@ -29,7 +34,7 @@ router.post('/messages/send', validateApiKey, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Number and message required' });
     }
 
-    const session = await db.getWhatsappSession(req.user.id);
+    const session = await DB.getWhatsappSession(req.user.id);
     if (!session || !session.is_connected) {
       return res.status(503).json({ success: false, error: 'WhatsApp not connected' });
     }
@@ -37,10 +42,7 @@ router.post('/messages/send', validateApiKey, async (req, res) => {
     const chatId = number.includes('@') ? number : `${number}@c.us`;
     await waManager.sendMessage(req.user.id, chatId, message);
 
-    await db.logAudit(req.user.id, 'send_message', 'messages', {
-      number,
-      apikey_id: req.apiKey.id
-    });
+    await DB.logAction(req.user.id, 'send_message', 'messages', null, { number, apikey_id: req.apiKey.id }, req.ip);
 
     res.json({
       success: true,
@@ -61,7 +63,7 @@ router.post('/messages/bulk', validateApiKey, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Messages array required' });
     }
 
-    const session = await db.getWhatsappSession(req.user.id);
+    const session = await DB.getWhatsappSession(req.user.id);
     if (!session || !session.is_connected) {
       return res.status(503).json({ success: false, error: 'WhatsApp not connected' });
     }
@@ -78,10 +80,7 @@ router.post('/messages/bulk', validateApiKey, async (req, res) => {
       }
     }
 
-    await db.logAudit(req.user.id, 'send_bulk_messages', 'messages', {
-      count: messages.length,
-      apikey_id: req.apiKey.id
-    });
+    await DB.logAction(req.user.id, 'send_bulk_messages', 'messages', null, { count: messages.length, apikey_id: req.apiKey.id }, req.ip);
 
     res.json({ success: true, data: results });
   } catch (error) {
@@ -93,7 +92,7 @@ router.post('/messages/bulk', validateApiKey, async (req, res) => {
 // GET /api/status - Estado general de la API
 router.get('/status', validateApiKey, async (req, res) => {
   try {
-    const session = await db.getWhatsappSession(req.user.id);
+    const session = await DB.getWhatsappSession(req.user.id);
     res.json({
       success: true,
       data: {

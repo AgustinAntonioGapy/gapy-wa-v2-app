@@ -31,11 +31,47 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Rutas
-// Ruta raíz - Login
+// Importar servicios y middleware
+const authMiddleware = require('./middleware/auth');
+const JwtService = require('./services/jwt');
+
+// Importar rutas
+const authRoutes = require('./routes/auth');
+const usersRoutes = require('./routes/users');
+const apiKeysRoutes = require('./routes/api-keys');
+const whatsappRoutes = require('./routes/whatsapp');
+const apiRoutes = require('./routes/api');
+
+// Ruta raíz - Login o dashboard según autenticación
 app.get('/', (req, res) => {
+  const token = req.cookies?.authToken;
+
+  if (token && !JwtService.isTokenExpired(token)) {
+    const decoded = JwtService.decodeToken(token);
+    return res.redirect(decoded.isAdmin ? '/admin' : '/dashboard');
+  }
+
   res.render('login', { error: null });
 });
+
+// Rutas de autenticación
+app.use('/auth', authRoutes);
+
+// Dashboard de usuario (requiere autenticación)
+app.get('/dashboard', authMiddleware.verifySession, (req, res) => {
+  res.render('user-dashboard', { user: req.user });
+});
+
+// Dashboard de admin (requiere ser admin)
+app.get('/admin', authMiddleware.verifySession, authMiddleware.requireAdmin, (req, res) => {
+  res.render('admin-dashboard', { user: req.user });
+});
+
+// Rutas de API protegidas
+app.use('/users', authMiddleware.verifyToken, usersRoutes);
+app.use('/api/api-keys', authMiddleware.verifyToken, apiKeysRoutes);
+app.use('/whatsapp', authMiddleware.verifyToken, whatsappRoutes);
+app.use('/api', apiRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -2,13 +2,13 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const waManager = require('../services/whatsapp');
-const db = require('../services/database');
+const DB = require('../services/database');
 const logger = require('../utils/logger');
 
 // GET /whatsapp/qr - Obtener QR code actual
-router.get('/qr', auth.verifyToken, async (req, res) => {
+router.get('/qr', auth.verifySession, async (req, res) => {
   try {
-    const session = await db.getWhatsappSession(req.user.id);
+    const session = await DB.getWhatsappSession(req.user.id);
     if (!session) {
       return res.status(404).json({ success: false, error: 'No WhatsApp session' });
     }
@@ -20,7 +20,7 @@ router.get('/qr', auth.verifyToken, async (req, res) => {
 });
 
 // POST /whatsapp/init - Iniciar sesión WhatsApp
-router.post('/init', auth.verifyToken, async (req, res) => {
+router.post('/init', auth.verifySession, async (req, res) => {
   try {
     const sessionPath = `/root/gapy-sessions/${req.user.id}`;
     const client = await waManager.initializeClient(req.user.id, sessionPath);
@@ -33,11 +33,10 @@ router.post('/init', auth.verifyToken, async (req, res) => {
 });
 
 // POST /whatsapp/disconnect - Desconectar WhatsApp
-router.post('/disconnect', auth.verifyToken, async (req, res) => {
+router.post('/disconnect', auth.verifySession, async (req, res) => {
   try {
     await waManager.disconnectClient(req.user.id);
-    await db.updateWhatsappSession(req.user.id, { is_connected: false });
-    await db.logAudit(req.user.id, 'disconnect_whatsapp', 'whatsapp_sessions', {});
+    await DB.logAction(req.user.id, 'disconnect_whatsapp', 'whatsapp_sessions', null, {}, req.ip);
 
     res.json({ success: true, message: 'WhatsApp disconnected' });
   } catch (error) {
@@ -47,9 +46,9 @@ router.post('/disconnect', auth.verifyToken, async (req, res) => {
 });
 
 // GET /whatsapp/status - Estado de la conexión
-router.get('/status', auth.verifyToken, async (req, res) => {
+router.get('/status', auth.verifySession, async (req, res) => {
   try {
-    const session = await db.getWhatsappSession(req.user.id);
+    const session = await DB.getWhatsappSession(req.user.id);
     const isConnected = session ? session.is_connected : false;
 
     res.json({

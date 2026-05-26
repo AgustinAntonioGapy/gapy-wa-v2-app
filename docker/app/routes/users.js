@@ -1,14 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const db = require('../services/database');
-const jwt = require('../services/jwt');
+const DB = require('../services/database');
 const logger = require('../utils/logger');
 
 // GET /users - Listar usuarios (solo admin)
-router.get('/', auth.verifyToken, auth.adminOnly, async (req, res) => {
+router.get('/', auth.verifySession, auth.requireAdmin, async (req, res) => {
   try {
-    const users = await db.getAllUsers();
+    const users = await DB.getAllUsers();
     res.json({ success: true, data: users });
   } catch (error) {
     logger.error('Error fetching users', error);
@@ -17,9 +16,9 @@ router.get('/', auth.verifyToken, auth.adminOnly, async (req, res) => {
 });
 
 // GET /users/:id - Obtener usuario
-router.get('/:id', auth.verifyToken, async (req, res) => {
+router.get('/:id', auth.verifySession, async (req, res) => {
   try {
-    const user = await db.getUserById(req.params.id);
+    const user = await DB.getUserById(req.params.id);
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
     res.json({ success: true, data: user });
   } catch (error) {
@@ -29,15 +28,15 @@ router.get('/:id', auth.verifyToken, async (req, res) => {
 });
 
 // POST /users - Crear usuario (solo admin)
-router.post('/', auth.verifyToken, auth.adminOnly, async (req, res) => {
+router.post('/', auth.verifySession, auth.requireAdmin, async (req, res) => {
   try {
     const { username, password, email } = req.body;
     if (!username || !password) {
       return res.status(400).json({ success: false, error: 'Username and password required' });
     }
 
-    const user = await db.createUser(username, password, email || null);
-    await db.logAudit(req.user.id, 'create_user', 'users', { username, email });
+    const user = await DB.createUser(username, password, email || null);
+    await DB.logAction(req.user.id, 'create_user', 'users', null, { username, email }, req.ip);
 
     res.json({ success: true, data: user });
   } catch (error) {
@@ -47,15 +46,15 @@ router.post('/', auth.verifyToken, auth.adminOnly, async (req, res) => {
 });
 
 // PUT /users/:id - Editar usuario (solo admin o el mismo usuario)
-router.put('/:id', auth.verifyToken, async (req, res) => {
+router.put('/:id', auth.verifySession, async (req, res) => {
   try {
     if (req.user.id !== parseInt(req.params.id) && !req.user.isAdmin) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
 
-    const { username, email } = req.body;
-    const user = await db.updateUser(req.params.id, username, email);
-    await db.logAudit(req.user.id, 'update_user', 'users', { id: req.params.id });
+    const { email } = req.body;
+    const user = await DB.updateUser(req.params.id, { email });
+    await DB.logAction(req.user.id, 'update_user', 'users', null, { id: req.params.id }, req.ip);
 
     res.json({ success: true, data: user });
   } catch (error) {
@@ -65,10 +64,10 @@ router.put('/:id', auth.verifyToken, async (req, res) => {
 });
 
 // DELETE /users/:id - Eliminar usuario (solo admin)
-router.delete('/:id', auth.verifyToken, auth.adminOnly, async (req, res) => {
+router.delete('/:id', auth.verifySession, auth.requireAdmin, async (req, res) => {
   try {
-    await db.deleteUser(req.params.id);
-    await db.logAudit(req.user.id, 'delete_user', 'users', { id: req.params.id });
+    await DB.deleteUser(req.params.id);
+    await DB.logAction(req.user.id, 'delete_user', 'users', null, { id: req.params.id }, req.ip);
 
     res.json({ success: true, message: 'User deleted' });
   } catch (error) {
