@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Gapy WhatsApp Bot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+    }
+    .navbar {
+      background: #2c3e50;
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .navbar h1 {
+      font-size: 24px;
+    }
+    .navbar .user-menu {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    .navbar button {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .section {
+      background: white;
+      border-radius: 8px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .section h2 {
+      color: #2c3e50;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 0.5rem;
+    }
+    .btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: opacity 0.3s;
+    }
+    .btn:hover {
+      opacity: 0.9;
+    }
+    .btn-success {
+      background: #27ae60;
+    }
+    .btn-danger {
+      background: #e74c3c;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .status-connected {
+      background: #27ae60;
+    }
+    .status-disconnected {
+      background: #e74c3c;
+    }
+    .qr-container {
+      text-align: center;
+      padding: 2rem;
+    }
+    .qr-container img {
+      max-width: 300px;
+      margin: 1rem 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    tr:hover {
+      background: #f8f9fa;
+    }
+    .copy-btn {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .copy-btn:hover {
+      opacity: 0.9;
+    }
+    .key-display {
+      font-family: monospace;
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #2c3e50;
+      font-weight: 500;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <h1>🤖 Gapy Dashboard</h1>
+    <div class="user-menu">
+      <span id="username">Usuario</span>
+      <form method="POST" action="/auth/logout" style="display: inline;">
+        <button type="submit">Salir</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Sección Estado WhatsApp -->
+    <div class="section">
+      <h2>Estado de Conexión WhatsApp</h2>
+      <div style="margin: 1rem 0;">
+        <p style="font-size: 18px;">
+          <span class="status-indicator" id="status-indicator"></span>
+          <span id="status-text">Desconectado</span>
+        </p>
+      </div>
+
+      <div id="whatsapp-disconnected">
+        <p style="color: #666; margin-bottom: 1rem;">
+          Escanea el código QR con tu teléfono para conectar WhatsApp.
+        </p>
+        <button class="btn btn-success" onclick="initWhatsApp()">Iniciar Conexión</button>
+      </div>
+
+      <div id="whatsapp-qr" style="display: none;">
+        <div class="qr-container">
+          <p>Escanea este código QR con WhatsApp en tu teléfono</p>
+          <img id="qr-image" src="" alt="QR Code">
+          <p style="color: #666; font-size: 12px;">Si no ves el QR, actualiza la página</p>
+        </div>
+      </div>
+
+      <div id="whatsapp-connected" style="display: none;">
+        <p style="color: #27ae60; margin-bottom: 1rem;">✅ WhatsApp conectado correctamente</p>
+        <button class="btn btn-danger" onclick="disconnectWhatsApp()">Desconectar</button>
+      </div>
+    </div>
+
+    <!-- Sección API Keys -->
+    <div class="section">
+      <h2>Mis API Keys</h2>
+      <button class="btn" onclick="generateApiKey()">Generar Nueva Clave</button>
+
+      <table id="keys-table">
+        <thead>
+          <tr>
+            <th>Clave</th>
+            <th>Etiqueta</th>
+            <th>Creada</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="keys-tbody">
+          <tr>
+            <td colspan="4" style="text-align: center; color: #999;">Cargando claves...</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div id="new-key-alert" style="display: none; background: #eef; border: 1px solid #88f; padding: 1rem; margin-top: 1rem; border-radius: 4px;">
+        <h3>Nueva Clave Generada</h3>
+        <p style="color: #666; margin-top: 0.5rem;">Copia esta clave ahora, no podrás verla de nuevo:</p>
+        <div class="key-display" id="new-key-display" style="margin: 1rem 0; font-size: 14px;"></div>
+        <button class="copy-btn" onclick="copyNewKey()">Copiar Clave</button>
+      </div>
+    </div>
+
+    <!-- Sección Documentación API -->
+    <div class="section">
+      <h2>Documentación API</h2>
+      <p style="color: #666; margin-bottom: 1rem;">
+        Usa tu API key para enviar mensajes por WhatsApp desde aplicaciones externas.
+      </p>
+
+      <h3 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Ejemplo de uso:</h3>
+      <pre style="background: #f8f9fa; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>POST /api/messages/send
+Headers:
+  X-API-Key: tu_clave_aqui
+
+Body:
+{
+  "number": "5511999999999",
+  "message": "Hola desde Gapy!"
+}
+
+Response:
+{
+  "success": true,
+  "message": "Message sent",
+  "data": {
+    "number": "5511999999999",
+    "timestamp": "2026-05-26T15:30:00Z"
+  }
+}</code></pre>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let currentUserId = null;
+
+    // Conectar al servidor Socket.io
+    socket.on('connect', () => {
+      console.log('Socket.io conectado');
+      const token = getCookie('authToken');
+      if (token) {
+        socket.emit('auth', { token });
+      }
+    });
+
+    // Escuchar eventos WhatsApp
+    socket.on('whatsapp:qr', (data) => {
+      console.log('QR recibido');
+      document.getElementById('whatsapp-disconnected').style.display = 'none';
+      document.getElementById('whatsapp-qr').style.display = 'block';
+      document.getElementById('whatsapp-connected').style.display = 'none';
+      document.getElementById('qr-image').src = data.qr;
+    });
+
+    socket.on('whatsapp:ready', (data) => {
+      console.log('WhatsApp listo');
+      document.getElementById('whatsapp-disconnected').style.display = 'none';
+      document.getElementById('whatsapp-qr').style.display = 'none';
+      document.getElementById('whatsapp-connected').style.display = 'block';
+      updateStatus(true);
+    });
+
+    socket.on('whatsapp:disconnected', (data) => {
+      console.log('WhatsApp desconectado');
+      document.getElementById('whatsapp-disconnected').style.display = 'block';
+      document.getElementById('whatsapp-qr').style.display = 'none';
+      document.getElementById('whatsapp-connected').style.display = 'none';
+      updateStatus(false);
+    });
+
+    async function initWhatsApp() {
+      try {
+        const response = await fetch('/whatsapp/init', { method: 'POST' });
+        if (!response.ok) throw new Error('Error iniciando WhatsApp');
+        console.log('WhatsApp iniciado');
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function disconnectWhatsApp() {
+      if (confirm('¿Desconectar WhatsApp?')) {
+        try {
+          const response = await fetch('/whatsapp/disconnect', { method: 'POST' });
+          if (!response.ok) throw new Error('Error desconectando');
+          updateStatus(false);
+        } catch (err) {
+          alert('Error: ' + err.message);
+        }
+      }
+    }
+
+    async function generateApiKey() {
+      const label = prompt('Nombre para la clave (ej: App1):', '');
+      if (!label) return;
+
+      try {
+        const response = await fetch('/api/api-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById('new-key-display').textContent = data.data.key;
+          document.getElementById('new-key-alert').style.display = 'block';
+          loadApiKeys();
+        }
+      } catch (err) {
+        alert('Error al generar clave');
+      }
+    }
+
+    function copyNewKey() {
+      const text = document.getElementById('new-key-display').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Clave copiada al portapapeles');
+      });
+    }
+
+    async function loadApiKeys() {
+      try {
+        const response = await fetch('/api/api-keys');
+        const result = await response.json();
+        // Implementar carga de claves
+      } catch (err) {
+        console.error('Error cargando claves:', err);
+      }
+    }
+
+    function updateStatus(connected) {
+      const indicator = document.getElementById('status-indicator');
+      const text = document.getElementById('status-text');
+      if (connected) {
+        indicator.classList.remove('status-disconnected');
+        indicator.classList.add('status-connected');
+        text.textContent = 'Conectado';
+        text.style.color = '#27ae60';
+      } else {
+        indicator.classList.remove('status-connected');
+        indicator.classList.add('status-disconnected');
+        text.textContent = 'Desconectado';
+        text.style.color = '#e74c3c';
+      }
+    }
+
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    // Cargar datos iniciales
+    loadApiKeys();
+  </script>
+</body>
+</html>
