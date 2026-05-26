@@ -1,29 +1,45 @@
-require('dotenv').config();
 const express = require('express');
-const { Pool } = require('pg');
+const { Server } = require('socket.io');
+const http = require('http');
+const bodyParser = require('body-parser');
+const helmet = require('helmet');
+const cors = require('cors');
+const path = require('path');
+require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3000;
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || '*',
+    methods: ['GET', 'POST']
+  }
 });
 
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
+
+app.use(helmet());
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 app.get('/', (req, res) => {
-  res.json({ message: 'Gapy WhatsApp Bot API - Running', status: 'ok' });
+  res.send('Gapy WhatsApp Bot API - Running');
 });
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'healthy' });
+  res.status(200).json({ status: 'ok' });
 });
 
-pool.on('error', (err) => {
-  console.error('Pool error', err);
+io.on('connection', (socket) => {
+  console.log('New user connected:', socket.id);
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
 });
 
-app.listen(port, () => {
-  console.log(`? Server running on port ${port}`);
-  console.log('?? Ready to receive connections');
+server.listen(PORT, () => {
+  console.log(`?? Server running on port ${PORT}`);
 });

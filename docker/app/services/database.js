@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-const bcrypt = require('bcrypt');
+const bcryptjs = require('bcryptjs');
 const logger = require('../utils/logger');
 
 const pool = new Pool({
@@ -15,7 +15,7 @@ pool.on('error', (err) => {
 
 const DB = {
   async createUser(username, password, email = null, isAdmin = false) {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcryptjs.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO users (username, password_hash, email, is_admin) VALUES ($1, $2, $3, $4) RETURNING id, username, email, is_admin, created_at',
       [username, hashedPassword, email, isAdmin]
@@ -68,12 +68,12 @@ const DB = {
   async verifyPassword(username, password) {
     const user = await DB.getUserByUsername(username);
     if (!user) return null;
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    const isValid = await bcryptjs.compare(password, user.password_hash);
     return isValid ? { id: user.id, username: user.username, is_admin: user.is_admin } : null;
   },
 
   async changePassword(userId, newPassword) {
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcryptjs.hash(newPassword, 10);
     await pool.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hashedPassword, userId]);
     return true;
   },
